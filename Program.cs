@@ -1,10 +1,13 @@
+using System.Text.Json.Serialization;
 using BattleshipBackend.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
 
+
+
 services.AddCors();
-services.AddSignalR();
+services.AddSignalR().AddJsonProtocol(options => options.PayloadSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve);
 
 var app = builder.Build();
 

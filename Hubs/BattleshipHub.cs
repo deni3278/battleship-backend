@@ -23,7 +23,11 @@ public class BattleshipHub : Hub
 
     public bool CreateRoom(string roomName)
     {
+        Debug.WriteLine(Context.ConnectionId + ": Attempting to create a room.");
+        
         if (Rooms.ContainsKey(roomName)) return false;
+        
+        Debug.WriteLine(Context.ConnectionId + ": Created room with name '" + roomName + "'.");
 
         var user = Users[Context.ConnectionId];
         var room = new Room(roomName, user);
