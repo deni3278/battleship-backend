@@ -11,9 +11,9 @@ public class BattleshipHub : Hub
 
     public void SetDisplayName(string displayName)
     {
-        Debug.WriteLine(Context.ConnectionId + ": Display name is set to '" + displayName + "'.");
-        
         Users[Context.ConnectionId].DisplayName = displayName;
+        
+        Debug.WriteLine(Context.ConnectionId + ": Display name is set to '" + displayName + "'.");
     }
 
     public Room[] GetRooms()
@@ -21,21 +21,46 @@ public class BattleshipHub : Hub
         return Rooms.Values.ToArray();
     }
 
-    public bool CreateRoom(string roomName)
+    public Room? CreateRoom(string roomName)
     {
         Debug.WriteLine(Context.ConnectionId + ": Attempting to create a room.");
         
-        if (Rooms.ContainsKey(roomName)) return false;
+        if (Rooms.ContainsKey(roomName)) return null;
         
-        Debug.WriteLine(Context.ConnectionId + ": Created room with name '" + roomName + "'.");
-
         var user = Users[Context.ConnectionId];
         var room = new Room(roomName, user);
         user.Room = room;
-        
-        Rooms.Add(roomName, room);
 
-        return true;
+        Rooms.Add(roomName, room);
+        
+        Debug.WriteLine(Context.ConnectionId + ": Created room with name '" + room.Name + "'.");
+
+        return room;
+    }
+
+    public void LeaveRoom()
+    {
+        var user = Users[Context.ConnectionId];
+        var room = user.Room;
+
+        if (room == null) return;
+        
+        // TODO: Inform the other user.
+
+        if (room.Owner == user)
+        {
+            Rooms.Remove(room.Name);
+            
+            Debug.WriteLine(Context.ConnectionId + ": Delisting room with name '" + room.Name + "'.");
+        }
+        else if (room.Opponent == user)
+        {
+            room.Opponent = null;
+            
+            Debug.WriteLine(Context.ConnectionId + ": Leaving room with name '" + room.Name + "'.");
+        }
+            
+        user.Room = null;
     }
 
     public override Task OnConnectedAsync()
@@ -43,18 +68,18 @@ public class BattleshipHub : Hub
         Debug.WriteLine(Context.ConnectionId + ": Connected.");
         
         Users.Add(Context.ConnectionId, new User(Context.ConnectionId));
-        
-        return base.OnConnectedAsync();
+
+        return Task.CompletedTask;
     }
 
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         Debug.WriteLine(Context.ConnectionId + ": Disconnected.");
         
-        // TODO: If the user is in a room with an opponent, the opponent should be notified of the user's disconnection.
-
-        Users.Remove(Context.ConnectionId);
+        LeaveRoom();
         
-        return base.OnDisconnectedAsync(exception);
+        Users.Remove(Context.ConnectionId);
+
+        return Task.CompletedTask;
     }
 }
