@@ -12,7 +12,7 @@ public class BattleshipHub : Hub
     public void SetDisplayName(string displayName)
     {
         Users[Context.ConnectionId].DisplayName = displayName;
-        
+
         Debug.WriteLine(Context.ConnectionId + ": Display name is set to '" + displayName + "'.");
     }
 
@@ -21,20 +21,55 @@ public class BattleshipHub : Hub
         return Rooms.Values.ToArray();
     }
 
-    public void LeaveRoom()
+    public Room? CreateRoom(string roomName)
+    {
+        var exists = Rooms.ContainsKey(roomName);
+
+        if (exists) return null;
+
+        var user = Users[Context.ConnectionId];
+        var room = new Room(roomName, user);
+        user.Room = room;
+        
+        Rooms.Add(roomName, room);
+        
+        Debug.WriteLine(Context.ConnectionId + ": Created a room with name '" + roomName + "'.");
+
+        return room;
+    }
+
+    public async Task<Room?> JoinRoom(string roomName)
+    {
+        if (!Rooms.TryGetValue(roomName, out var room) || room.Opponent != null) return null;
+        
+        Debug.WriteLine(Context.ConnectionId + ": Joining room with name '" + roomName + "'.");
+
+        var user = Users[Context.ConnectionId];
+        user.Room = room;
+        room.Opponent = user;
+
+        await Clients.Client(room.Owner.ConnectionId).SendAsync("Refresh", room);
+            
+        return room;
+    }
+
+    public async void LeaveRoom()
     {
         var user = Users[Context.ConnectionId];
-
+        
         if (user.Room == null) return;
-
+        
+        Debug.WriteLine(Context.ConnectionId + ": Leaving their room.");
+        Debug.WriteLine("Owner: " + user.Room.Owner.DisplayName);
+        Debug.WriteLine("Opponent: " + user.Room.Opponent?.DisplayName + "\n");
+        
         if (user.Room.Owner == user)
         {
             Rooms.Remove(user.Room.Name);
 
             if (user.Room.Opponent != null)
             {
-                // TODO: Notify the opponent.
-                // await Clients.Client(user.Room.Opponent.ConnectionId).SendAsync("LeaveRoom");
+                await Clients.Client(user.Room.Opponent.ConnectionId).SendAsync("OwnerLeft");
             }
 
             Debug.WriteLine(Context.ConnectionId + ": Removing room with name '" + user.Room.Name + "'.");
@@ -42,10 +77,9 @@ public class BattleshipHub : Hub
         else if (user.Room.Opponent == user)
         {
             user.Room.Opponent = null;
-            
-            // TODO: Notify the owner.
-            // await Clients.Client(user.Room.Owner.ConnectionId).SendAsync("Refresh", user.Room);
-            
+
+            await Clients.Client(user.Room.Owner.ConnectionId).SendAsync("Refresh", user.Room);
+
             Debug.WriteLine(Context.ConnectionId + ": Leaving room with name '" + user.Room.Name + "'.");
         }
 
@@ -55,7 +89,7 @@ public class BattleshipHub : Hub
     public override Task OnConnectedAsync()
     {
         Debug.WriteLine(Context.ConnectionId + ": Connected.");
-        
+
         Users.Add(Context.ConnectionId, new User(Context.ConnectionId));
 
         return Task.CompletedTask;
@@ -64,9 +98,9 @@ public class BattleshipHub : Hub
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         Debug.WriteLine(Context.ConnectionId + ": Disconnected.");
-        
+
         LeaveRoom();
-        
+
         Users.Remove(Context.ConnectionId);
 
         return Task.CompletedTask;
