@@ -16,50 +16,39 @@ public class BattleshipHub : Hub
         Debug.WriteLine(Context.ConnectionId + ": Display name is set to '" + displayName + "'.");
     }
 
-    public Room[] GetRooms()
+    public IEnumerable<Room> GetRooms()
     {
         return Rooms.Values.ToArray();
-    }
-
-    public Room? CreateRoom(string roomName)
-    {
-        Debug.WriteLine(Context.ConnectionId + ": Attempting to create a room.");
-        
-        if (Rooms.ContainsKey(roomName)) return null;
-        
-        var user = Users[Context.ConnectionId];
-        var room = new Room(roomName, user);
-        user.Room = room;
-
-        Rooms.Add(roomName, room);
-        
-        Debug.WriteLine(Context.ConnectionId + ": Created room with name '" + room.Name + "'.");
-
-        return room;
     }
 
     public void LeaveRoom()
     {
         var user = Users[Context.ConnectionId];
-        var room = user.Room;
 
-        if (room == null) return;
-        
-        // TODO: Inform the other user.
+        if (user.Room == null) return;
 
-        if (room.Owner == user)
+        if (user.Room.Owner == user)
         {
-            Rooms.Remove(room.Name);
-            
-            Debug.WriteLine(Context.ConnectionId + ": Delisting room with name '" + room.Name + "'.");
+            Rooms.Remove(user.Room.Name);
+
+            if (user.Room.Opponent != null)
+            {
+                // TODO: Notify the opponent.
+                // await Clients.Client(user.Room.Opponent.ConnectionId).SendAsync("LeaveRoom");
+            }
+
+            Debug.WriteLine(Context.ConnectionId + ": Removing room with name '" + user.Room.Name + "'.");
         }
-        else if (room.Opponent == user)
+        else if (user.Room.Opponent == user)
         {
-            room.Opponent = null;
+            user.Room.Opponent = null;
             
-            Debug.WriteLine(Context.ConnectionId + ": Leaving room with name '" + room.Name + "'.");
+            // TODO: Notify the owner.
+            // await Clients.Client(user.Room.Owner.ConnectionId).SendAsync("Refresh", user.Room);
+            
+            Debug.WriteLine(Context.ConnectionId + ": Leaving room with name '" + user.Room.Name + "'.");
         }
-            
+
         user.Room = null;
     }
 
