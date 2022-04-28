@@ -64,12 +64,16 @@ public class BattleshipHub : Hub
         Debug.WriteLine("Owner: " + room.Owner.DisplayName);
         Debug.WriteLine("Opponent: " + room.Opponent?.DisplayName + "\n");
         
+        Unready();
+        
         if (room.Owner == user)
         {
             Rooms.Remove(room.Name);
 
             if (room.Opponent != null)
             {
+                room.IsOwnerReady = false;
+                
                 await Clients.Client(room.Opponent.ConnectionId).SendAsync("OwnerLeft");
             }
 
@@ -78,6 +82,7 @@ public class BattleshipHub : Hub
         else if (room.Opponent == user)
         {
             room.Opponent = null;
+            room.IsOpponentReady = false;
 
             await Clients.Client(room.Owner.ConnectionId).SendAsync("Refresh", room);
 
@@ -87,8 +92,56 @@ public class BattleshipHub : Hub
         {
             Debug.WriteLine(Context.ConnectionId + ": Something unexpected happened while attempting to leave room.");
         }
-
+        
         user.Room = null;
+    }
+
+    public async Task Ready()
+    {
+        var user = Users[Context.ConnectionId];
+        var room = user.Room;
+
+        if (room == null) return;
+        
+        Debug.WriteLine(Context.ConnectionId + ": Readying in room with name '" + room.Name + "'.");
+        
+        var isOwner = user.Room.Owner == user;
+
+        if (isOwner)
+        {
+            room.IsOwnerReady = true;
+        }
+        else
+        {
+            room.IsOpponentReady = true;
+        }
+
+        if (room.IsOwnerReady && room.IsOpponentReady)
+        {
+            Debug.WriteLine(Context.ConnectionId + ": Game starting in room with name '" + room.Name + "'.");
+
+            await Clients.Client(room.Owner.ConnectionId).SendAsync("Start");
+            await Clients.Client(room.Opponent.ConnectionId).SendAsync("Start");
+        }
+    }
+
+    public void Unready()
+    {
+        var user = Users[Context.ConnectionId];
+        var room = user.Room;
+        
+        if (room == null) return;
+        
+        Debug.WriteLine(Context.ConnectionId + ": Unreadying in room with name '" + room.Name + "'.");
+
+        if (room.Owner == user)
+        {
+            room.IsOwnerReady = false;
+        }
+        else
+        {
+            room.IsOpponentReady = false;
+        }
     }
 
     public override Task OnConnectedAsync()
@@ -107,5 +160,6 @@ public class BattleshipHub : Hub
         await LeaveRoom();
 
         Users.Remove(Context.ConnectionId);
+
     }
 }
