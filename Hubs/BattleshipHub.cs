@@ -53,34 +53,39 @@ public class BattleshipHub : Hub
         return room;
     }
 
-    public async void LeaveRoom()
+    public async Task LeaveRoom()
     {
         var user = Users[Context.ConnectionId];
+        var room = user.Room;
         
-        if (user.Room == null) return;
+        if (room == null) return;
         
         Debug.WriteLine(Context.ConnectionId + ": Leaving their room.");
-        Debug.WriteLine("Owner: " + user.Room.Owner.DisplayName);
-        Debug.WriteLine("Opponent: " + user.Room.Opponent?.DisplayName + "\n");
+        Debug.WriteLine("Owner: " + room.Owner.DisplayName);
+        Debug.WriteLine("Opponent: " + room.Opponent?.DisplayName + "\n");
         
-        if (user.Room.Owner == user)
+        if (room.Owner == user)
         {
-            Rooms.Remove(user.Room.Name);
+            Rooms.Remove(room.Name);
 
-            if (user.Room.Opponent != null)
+            if (room.Opponent != null)
             {
-                await Clients.Client(user.Room.Opponent.ConnectionId).SendAsync("OwnerLeft");
+                await Clients.Client(room.Opponent.ConnectionId).SendAsync("OwnerLeft");
             }
 
-            Debug.WriteLine(Context.ConnectionId + ": Removing room with name '" + user.Room.Name + "'.");
+            Debug.WriteLine(Context.ConnectionId + ": Removing room with name '" + room.Name + "'.");
         }
-        else if (user.Room.Opponent == user)
+        else if (room.Opponent == user)
         {
-            user.Room.Opponent = null;
+            room.Opponent = null;
 
-            await Clients.Client(user.Room.Owner.ConnectionId).SendAsync("Refresh", user.Room);
+            await Clients.Client(room.Owner.ConnectionId).SendAsync("Refresh", room);
 
-            Debug.WriteLine(Context.ConnectionId + ": Leaving room with name '" + user.Room.Name + "'.");
+            Debug.WriteLine(Context.ConnectionId + ": Leaving room with name '" + room.Name + "'.");
+        }
+        else
+        {
+            Debug.WriteLine(Context.ConnectionId + ": Something unexpected happened while attempting to leave room.");
         }
 
         user.Room = null;
@@ -91,18 +96,16 @@ public class BattleshipHub : Hub
         Debug.WriteLine(Context.ConnectionId + ": Connected.");
 
         Users.Add(Context.ConnectionId, new User(Context.ConnectionId));
-
+        
         return Task.CompletedTask;
     }
 
-    public override Task OnDisconnectedAsync(Exception? exception)
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
         Debug.WriteLine(Context.ConnectionId + ": Disconnected.");
 
-        LeaveRoom();
+        await LeaveRoom();
 
         Users.Remove(Context.ConnectionId);
-
-        return Task.CompletedTask;
     }
 }
